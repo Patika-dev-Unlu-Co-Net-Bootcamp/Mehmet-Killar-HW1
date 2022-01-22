@@ -1,153 +1,88 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Unluco.Egitim.HW1.Api.DbOperations;
+using Unluco.Egitim.HW1.Api.EmployeeOperations.CreateEmployee;
+using Unluco.Egitim.HW1.Api.EmployeeOperations.DeleteEmployee;
 using Unluco.Egitim.HW1.Api.Models;
+using FluentValidation;
+using static Unluco.Egitim.HW1.Api.EmployeeOperations.CreateEmployee.CreateEmployeeCommand;
+using Unluco.Egitim.HW1.Api.EmployeeOperations.GetEmployeeById;
+using Unluco.Egitim.HW1.Api.EmployeeOperations.GetEmployees;
+using Unluco.Egitim.HW1.Api.EmployeeOperations.UpdateEmployee;
+using static Unluco.Egitim.HW1.Api.EmployeeOperations.UpdateEmployee.UpdateEmployeeCommand;
 
 namespace Unluco.Egitim.HW1.Api.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/[controller]s")]
     [ApiController]
     public class EmployeeController : ControllerBase
     {
-        public List<Employee> employeeList = new List<Employee>()
-        {
-            new Employee{Id=1,Name="Hasan",PhoneNumber="12354679",CompanyName="A Company",ProjectName="qbitra"},
-            new Employee{Id=2,Name="Mert",PhoneNumber="987654321",CompanyName="B Company",ProjectName="zozi"},
-            new Employee{Id=3,Name="Murat",PhoneNumber="564987321",CompanyName="C Company",ProjectName="zoqlab"}
-        };
+        private readonly EmployeeDbContext _dbcontext;
+        private readonly IMapper _mapper;
 
-        [HttpGet("get")]
+        public EmployeeController(EmployeeDbContext dbcontext,IMapper mapper)
+        {
+            _dbcontext = dbcontext;
+            _mapper = mapper;
+        }
+
+        [HttpGet]
         public IActionResult Get([FromQuery] string reverse)
         {
-            try
-            {
-                var employees = new List<Employee>();
-                if (reverse==null || reverse == "")
-                {
-                    employees = employeeList;
-                    if (employees != null) return Ok(employees);
-                    else return NotFound();
-                }
-                else
-                {
-                    employees = employeeList.OrderByDescending(m => m.Id).ToList();
-                    return Ok(employees);
-                }
-                               
-            }
-            catch (Exception)
-            {
-                return BadRequest();
-            }
+            GetEmployeesQuery query = new GetEmployeesQuery(_dbcontext,_mapper);
+            var result = query.Handle();
+            return Ok(result);
         }
      
-        [HttpGet("get/{id}")]
+        [HttpGet("{id}")]
         public IActionResult GetById(int id)
         {
-            try
-            {
-                var employee = employeeList.SingleOrDefault(m => m.Id==id);
-                if (employee != null) return Ok(employee);                
-                else return NotFound();                
-            }
-            catch (Exception)
-            {
-                return BadRequest();
-            }
+            GetByIdEmployeeModel result;
+            GetEmployeeByIdQuery query = new GetEmployeeByIdQuery(_dbcontext, _mapper);
+            query.EmployeeId = id;
+            GetEmployeeByIdQueryValidator validator = new GetEmployeeByIdQueryValidator();
+            validator.ValidateAndThrow(query);
+            result = query.Handle();
+            return Ok(result);
         }
 
-        [HttpPost("create")]
-        public IActionResult Create([FromBody]Employee employee)
+        [HttpPost]
+        public IActionResult Create([FromBody]CreateEmployeeModel employee)
         {
-            try
-            {
-                var _employee = employeeList.SingleOrDefault(m => m.Id == employee.Id);
-                if (_employee != null) return NotFound();
-                else
-                {
-                    Employee newEmployee = new Employee();
-                    newEmployee.Id = employee.Id;
-                    newEmployee.Name = employee.Name;
-                    newEmployee.PhoneNumber = employee.PhoneNumber;
-                    newEmployee.CompanyName = employee.CompanyName;
-                    newEmployee.ProjectName = employee.ProjectName;
-
-                    employeeList.Add(newEmployee);
-                    return Created("Created", newEmployee);
-                }
-                    
-            }
-            catch (Exception)
-            {
-
-                return BadRequest();
-            }
+            CreateEmployeeCommand command = new CreateEmployeeCommand(_dbcontext, _mapper);
+            command.Model = employee;
+            CreateEmployeeCommandValidator validator = new CreateEmployeeCommandValidator();
+            validator.ValidateAndThrow(command);
+            command.Handle();
+            return Ok();
         }
-        [HttpPut("update/{id}")]
-        public IActionResult Update(int id,[FromBody] Employee employee)
+        [HttpPut("{id}")]
+        public IActionResult Update(string id,[FromBody] UpdateEmployeeModel employee)
         {
-            try
-            {
-                Employee _employee = (Employee)employeeList.SingleOrDefault(m => m.Id == id);
-                if (_employee != null)
-                {
-                    _employee.Id = employee.Id;
-                    _employee.Name = employee.Name;
-                    _employee.PhoneNumber = employee.PhoneNumber;
-                    _employee.CompanyName = employee.CompanyName;
-                    _employee.ProjectName = employee.ProjectName;
+            UpdateEmployeeCommand command = new UpdateEmployeeCommand(_dbcontext);
+            command.EmployeeId = Convert.ToInt32(id);
+            UpdateEmployeeCommandValidator validator = new UpdateEmployeeCommandValidator();
+            validator.ValidateAndThrow(command);
+            command.Model = employee;
+            return Ok();
 
-                    return Ok(_employee);
-                }
-                else return NotFound();                
-            }
-            catch (Exception)
-            {
-
-                return BadRequest();
-            }
         }
 
-        [HttpPatch("patch/{id}/")]
-        public IActionResult Patch(int id, [FromQuery]string projectName)
-        {
-            try
-            {
-                Employee _employee = (Employee)employeeList.SingleOrDefault(m => m.Id == id);
-                if (_employee != null) {
-                    _employee.ProjectName = projectName;
-                    return Ok(_employee); 
-                } 
-                else return NotFound();
-            }
-            catch (Exception)
-            {
 
-                return BadRequest();
-            }
-        }
-
-        [HttpDelete("delete/{id}")]
+        [HttpDelete("{id}")]
         public IActionResult Delete(int id)
         {
-            try
-            {
-                Employee _employee = (Employee)employeeList.SingleOrDefault(m => m.Id == id);
-                if (_employee != null)
-                {
-                    employeeList.Remove(_employee);
-                    return Ok();
-                } 
-                else return NotFound();
-            }
-            catch (Exception)
-            {
-
-                return BadRequest();
-            }
+            DeleteEmployeeCommand command = new DeleteEmployeeCommand(_dbcontext);
+            command.EmployeeId = id;
+            DeleteEmployeeCommandValidator validator = new DeleteEmployeeCommandValidator();
+            validator.ValidateAndThrow(command);
+            command.Handle();
+            return Ok();
         }
 
     }
